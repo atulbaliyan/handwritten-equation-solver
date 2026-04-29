@@ -56,3 +56,18 @@ python test_image.py
 - `solver.py`: Normalizes and solves arithmetic expressions and single-variable equations using SymPy.
 - `streamlit_app.py`: Streamlit UI wiring the OCR and solver together.
 - `test_image.py`: Simple test runners for local images.
+
+## Included Models
+
+- `cnn_model.h5`: Keras CNN model for per-symbol classification.
+- `rnn_model.h5`: sequence/RNN model for full-line recognition.
+
+Model notes:
+
+- The model integration is best-effort and conservative: the code checks the model input/output shapes and only uses predictions that match the assumed character set. If you trained custom models, ensure their output dimension matches the charset `0123456789abcdefghijklmnopqrstuvwxyz+-=()*/.` or adjust `ocr_engine.py` accordingly.
+- To retrain or replace models, save them as Keras `.h5` files named `cnn_model.h5` and/or `rnn_model.h5` in the project root.
+
+## TensorFlow
+
+- The project optionally uses TensorFlow/Keras for these models. If you want TensorFlow support, install a compatible TensorFlow package for your platform (`pip install tensorflow`) or follow the TensorFlow installation guide for GPU/CUDA support.
+

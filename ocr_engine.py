@@ -10,6 +10,11 @@ import pytesseract
 import sympy as sp
 from PIL import Image, ImageOps, ImageEnhance
 
+try:
+    import tensorflow as tf
+except Exception:
+    tf = None
+
 
 WHITELIST = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=*/()."
 TEMPLATE_CHARS = "0123456789+-=xyz"
@@ -29,6 +34,11 @@ def _make_templates(size: int = 36):
 
 TEMPLATES = _make_templates()
 _EASY_READER = None
+_CNN_MODEL = None
+_RNN_MODEL = None
+_CNN_MODEL_PATH = "/home/atul-baliyan/Desktop/solver/cnn_model.h5"
+_RNN_MODEL_PATH = "/home/atul-baliyan/Desktop/solver/rnn_model.h5"
+CHARSET = list("0123456789abcdefghijklmnopqrstuvwxyz+-=()*/.")
 
 
 def _get_easy_reader():
@@ -108,6 +118,7 @@ def _template_symbol_read(image: Image.Image) -> str:
 
 
 def _segmented_tesseract_read(image: Image.Image) -> str:
+    global _CNN_MODEL
     gray = np.array(ImageOps.grayscale(image))
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
     bw = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 11)
@@ -133,13 +144,34 @@ def _segmented_tesseract_read(image: Image.Image) -> str:
         x1, y1 = min(wtot, x + w + pad), min(htot, y + h + pad)
         roi = 255 - bw[y0:y1, x0:x1]
         pil = Image.fromarray(roi).convert("RGB")
-        try:
-            ch = pytesseract.image_to_string(
-                pil,
-                config="--oem 3 --psm 10 -c tessedit_char_whitelist=0123456789xyzXYZ+-=()"
-            ).strip()
-        except Exception:
-            ch = ""
+        ch = ""
+        if tf is not None and _CNN_MODEL is None:
+            try:
+                _CNN_MODEL = tf.keras.models.load_model(_CNN_MODEL_PATH)
+            except Exception:
+                _CNN_MODEL = None
+        if tf is not None and _CNN_MODEL is not None:
+            try:
+                arr = cv2.resize(roi, (36, 36), interpolation=cv2.INTER_AREA)
+                arr = arr.astype(np.float32) / 255.0
+                if arr.ndim == 2:
+                    arr = np.expand_dims(arr, -1)
+                x_in = np.expand_dims(arr, 0)
+                pred = _CNN_MODEL.predict(x_in)
+                if pred is not None:
+                    if pred.ndim == 2 and pred.shape[1] == len(CHARSET):
+                        idx = int(np.argmax(pred[0]))
+                        ch = CHARSET[idx]
+            except Exception:
+                ch = ""
+        if not ch:
+            try:
+                ch = pytesseract.image_to_string(
+                    pil,
+                    config="--oem 3 --psm 10 -c tessedit_char_whitelist=0123456789xyzXYZ+-=()"
+                ).strip()
+            except Exception:
+                ch = ""
         ch = _clean_candidate(ch)
         if ch:
             # take first symbol from noisy OCR chunk
@@ -302,6 +334,7 @@ def _is_parseable_math(s: str) -> bool:
 
 
 def extract_best_expression(image: Image.Image) -> Tuple[str, List[str]]:
+    global _RNN_MODEL
     cands: List[str] = []
 
     # Template-based symbol OCR first (helps handwritten digits/operators).
@@ -333,6 +366,52 @@ def extract_best_expression(image: Image.Image) -> Tuple[str, List[str]]:
             c = _clean_candidate(raw)
             if c and c not in cands:
                 cands.append(c)
+
+    if tf is not None and _RNN_MODEL is None:
+        try:
+            _RNN_MODEL = tf.keras.models.load_model(_RNN_MODEL_PATH)
+        except Exception:
+            _RNN_MODEL = None
+    if tf is not None and _RNN_MODEL is not None:
+        for v in _variants(image):
+            try:
+                arr = np.array(v.convert("L"))
+                # Determine expected input shape if available
+                inp_shape = None
+                try:
+                    inp_shape = _RNN_MODEL.input_shape
+                except Exception:
+                    inp_shape = None
+                if inp_shape and len(inp_shape) >= 3:
+                    # expected (batch, H, W, C) or (batch, H, W)
+                    h_expected = inp_shape[1] or arr.shape[0]
+                    w_expected = inp_shape[2] or arr.shape[1]
+                else:
+                    h_expected, w_expected = (32, 256)
+                res = cv2.resize(arr, (max(16, w_expected), max(8, h_expected)), interpolation=cv2.INTER_AREA)
+                res = res.astype(np.float32) / 255.0
+                if res.ndim == 2:
+                    res = np.expand_dims(res, -1)
+                x_in = np.expand_dims(res, 0)
+                pred = _RNN_MODEL.predict(x_in)
+                # Expecting sequence output: (batch, T, classes)
+                if pred is not None and pred.ndim == 3 and pred.shape[2] == len(CHARSET):
+                    seq = np.argmax(pred[0], axis=1)
+                    # collapse repeats
+                    out_txt = []
+                    prev = None
+                    for idx in seq:
+                        if idx == prev:
+                            prev = idx
+                            continue
+                        prev = idx
+                        if 0 <= int(idx) < len(CHARSET):
+                            out_txt.append(CHARSET[int(idx)])
+                    cand = _clean_candidate("".join(out_txt))
+                    if cand and cand not in cands:
+                        cands.append(cand)
+            except Exception:
+                continue
 
     if not cands:
         return "", []
