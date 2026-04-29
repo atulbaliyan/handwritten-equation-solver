@@ -1,0 +1,57 @@
+.codex
+.venv
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+venv/
+ENV/
+env/
+
+# Distribution / packaging
+build/
+dist/
+pip-wheel-metadata/
+
+# Installer logs
+pip-log.txt
+
+# Unit test / coverage
+.pytest_cache/
+.coverage
+coverage/
+
+# Jupyter
+.ipynb_checkpoints
+
+# Editor directories and files
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Streamlit
+.streamlit/
+
+# Logs
+logs/
+*.log
+
+# Data, models, and weights
+data/
+models/
+weights/
+*.pth
+*.pt
+*.ckpt
+
+# Torch cache
+.cache/torch
+
+# MyPy
+.mypy_cache/
+
