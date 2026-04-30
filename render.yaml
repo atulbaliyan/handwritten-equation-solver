@@ -2,6 +2,7 @@ services:
   - type: web
     name: handwritten-equation-solver
     runtime: python
+    pythonVersion: 3.11.9
     plan: free
     buildCommand: |
       apt-get update && apt-get install -y tesseract-ocr libgl1 && rm -rf /var/lib/apt/lists/*
