@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: handwritten-equation-solver
+    runtime: python
+    plan: free
+    buildCommand: |
+      apt-get update && apt-get install -y tesseract-ocr libgl1 && rm -rf /var/lib/apt/lists/*
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: streamlit run streamlit_app.py --server.port $PORT --server.address 0.0.0.0
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9

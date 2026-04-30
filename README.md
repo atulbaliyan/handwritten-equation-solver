@@ -70,4 +70,3 @@ Model notes:
 ## TensorFlow
 
 - The project optionally uses TensorFlow/Keras for these models. If you want TensorFlow support, install a compatible TensorFlow package for your platform (`pip install tensorflow`) or follow the TensorFlow installation guide for GPU/CUDA support.
-
